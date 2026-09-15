@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""NOVA · POWERED BY SK · v9.0 · Creator: Shavit Klein · Render Edition"""
+"""NOVA · POWERED BY SK · v9.1 · Creator: Shavit Klein · Render Edition"""
 
 import os, sys, json, time, uuid, re, io, secrets, hashlib, hmac, random, threading, urllib.error, urllib.parse, urllib.request, base64
 from datetime import datetime
@@ -29,7 +29,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 PORT = int(os.environ.get("PORT", "10000"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 
-APP_NAME, VERSION, CREATOR, BRAND = "NOVA", "9.0", "Shavit Klein", "POWERED BY SK"
+APP_NAME, VERSION, CREATOR, BRAND = "NOVA", "9.1", "Shavit Klein", "POWERED BY SK"
 ADMIN_USER = "sk"
 MAX_BODY = 25 * 1024 * 1024
 MODEL_TIMEOUT = 90
@@ -258,7 +258,7 @@ CITY_COORDS = {"jerusalem":(31.7683,35.2137),"ירושלים":(31.7683,35.2137),
 
 def _getjson(url, t=8):
     try:
-        req = urllib.request.Request(url, headers={"User-Agent":"NOVA/9.0"})
+        req = urllib.request.Request(url, headers={"User-Agent":"NOVA/9.1"})
         with urllib.request.urlopen(req, timeout=t) as r: return json.loads(r.read().decode("utf-8","replace"))
     except Exception: return None
 
@@ -362,14 +362,6 @@ def get_chat_admin(cid):
     msgs = cur.fetchall(); cur.close(); c.close()
     return {"chat": chat, "messages": [{"id":m[0],"role":m[1],"content":m[2],"model":m[3],"created_at":m[4]} for m in msgs]}
 
-def rename_chat(cid, uid, title):
-    title = str(title).strip()[:120]
-    if not title: return
-    with DB_LOCK:
-        c = db(); cur = c.cursor()
-        cur.execute("UPDATE chats SET title=%s,updated_at=%s WHERE id=%s AND user_id=%s", (title, now(), cid, uid))
-        c.commit(); cur.close(); c.close()
-
 def rename_chat_force(cid, title):
     title = str(title).strip()[:120]
     if not title: return
@@ -461,14 +453,6 @@ def delete_agent(uid, aid):
         cur.execute("DELETE FROM agents WHERE id=%s AND user_id=%s", (aid, uid))
         c.commit(); cur.close(); c.close()
 
-def get_user_analysis(uid):
-    try:
-        c = db(); cur = c.cursor()
-        cur.execute("SELECT summary,emotions,topics,style FROM user_analysis WHERE user_id=%s", (uid,))
-        r = cur.fetchone(); cur.close(); c.close()
-        return {"summary":r[0],"emotions":r[1],"topics":r[2],"style":r[3]} if r else None
-    except Exception: return None
-
 def save_feedback(uid, username, category, text):
     with DB_LOCK:
         c = db(); cur = c.cursor()
@@ -499,11 +483,10 @@ def get_stats():
     cur.execute("SELECT COUNT(*) FROM users"); tu = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM chats"); tc = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM messages"); tm = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM users WHERE created_at > %s", (now()-86400,)); n24 = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM users WHERE vip=1"); vips = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM users WHERE banned=1"); banned = cur.fetchone()[0]
     cur.close(); c.close()
-    return {"total_users":tu,"total_chats":tc,"total_messages":tm,"new_users_24h":n24,"vip_users":vips,"banned_users":banned}
+    return {"total_users":tu,"total_chats":tc,"total_messages":tm,"vip_users":vips,"banned_users":banned}
 
 def set_user_ban(uid, ban):
     with DB_LOCK:
@@ -574,6 +557,9 @@ def clean_control(t):
 def handle_slash(text, user, cid):
     if not text.startswith("/"): return None
     parts = text.split(maxsplit=1); cmd = parts[0][1:].lower(); arg = parts[1].strip() if len(parts) > 1 else ""
+    # Special - handled by frontend, never reach server
+    if cmd == "sk": return {"handled": True, "special": "dev"}
+    if cmd == "vip": return {"handled": True, "special": "vip"}
     if cmd == "help":
         return {"handled": True, "reply": "**פקודות**\n/help · /clear · /models\n/weather [city] · /wiki <topic>\n/level 1-5 · /personality <name>\n/memory · /memory add <text>"}
     if cmd == "clear":
@@ -679,7 +665,6 @@ button{border:0;background:none;cursor:pointer;touch-action:manipulation}
 .menu:hover{background:var(--hover)}
 .title{font-size:14px;font-weight:500;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right}
 .right{margin-right:auto;display:flex;align-items:center;gap:4px}
-.level-badge{font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:var(--r-full);background:var(--panel);color:var(--text2);border:1px solid var(--border)}
 .vip-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:var(--r-full);background:linear-gradient(135deg,#f5c842,#d4a017);color:#1a1a1a}
 .ibtn{width:36px;height:36px;border-radius:var(--r-md);display:grid;place-items:center;color:var(--muted);border:0;font-size:18px}
 .ibtn:hover{background:var(--hover);color:var(--text)}
@@ -704,9 +689,6 @@ button{border:0;background:none;cursor:pointer;touch-action:manipulation}
 .msg.user .bd{display:flex;justify-content:flex-start;flex:0 1 auto;max-width:80%}
 .msg.user .bub{background:var(--panel);padding:10px 16px;border-radius:var(--r-xl);color:var(--text);font-size:15px;line-height:1.6}
 .msg.assistant .bub{color:var(--text2);font-size:15px;line-height:1.7}
-.tag{display:inline-block;padding:2px 8px;margin-bottom:6px;border-radius:var(--r-full);background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:500}
-.tag b{color:var(--text);font-weight:600}
-.tag .lvl{color:var(--accent);font-weight:600}
 .bub{white-space:pre-wrap;overflow-wrap:anywhere;unicode-bidi:plaintext}
 .bub[dir="rtl"]{text-align:right}
 .bub[dir="ltr"]{text-align:left}
@@ -764,6 +746,100 @@ input:checked + .sl{background:var(--text)}
 input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 .li{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:6px;background:var(--panel);font-size:13.5px;color:var(--text2)}
 .li button{color:var(--danger);font-size:15px;padding:0 4px;border:0;background:none;cursor:pointer}
+
+/* ===== LUX MODALS ===== */
+.lux{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:200;padding:20px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(0,0,0,.75)}
+.lux.on{display:flex}
+.lux-box{width:min(420px,100%);border-radius:20px;padding:46px 36px 36px;text-align:center;position:relative;overflow:hidden;animation:luxIn .4s cubic-bezier(.4,0,.2,1)}
+@keyframes luxIn{from{opacity:0;transform:translateY(24px) scale(.94)}to{opacity:1;transform:none}}
+.lux-dev{background:linear-gradient(160deg,#0a0a0a 0%,#141416 50%,#0a0a0a 100%);border:1px solid rgba(255,255,255,.06);box-shadow:0 30px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04)}
+.lux-dev::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 50% 0%,rgba(220,38,38,.09),transparent 60%);pointer-events:none}
+.lux-dev .lux-icon{color:#dc2626;border-color:rgba(220,38,38,.3);box-shadow:0 0 40px rgba(220,38,38,.15),inset 0 0 20px rgba(220,38,38,.05)}
+.lux-dev .lux-title{color:#fafafa}
+.lux-dev .lux-sub{color:#71717a}
+.lux-dev input{background:rgba(0,0,0,.55);border:1px solid rgba(220,38,38,.25);color:#fca5a5}
+.lux-dev input:focus{border-color:rgba(220,38,38,.6);box-shadow:0 0 0 4px rgba(220,38,38,.1)}
+.lux-dev button.lux-go{background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;box-shadow:0 10px 30px rgba(220,38,38,.3)}
+.lux-dev button.lux-go:hover{box-shadow:0 14px 36px rgba(220,38,38,.45)}
+.lux-vip{background:linear-gradient(160deg,#0a0a0a 0%,#1a1610 50%,#0a0a0a 100%);border:1px solid rgba(201,169,97,.3);box-shadow:0 30px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(201,169,97,.08)}
+.lux-vip::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 50% 0%,rgba(201,169,97,.14),transparent 60%);pointer-events:none}
+.lux-vip .lux-icon{color:#c9a961;border-color:rgba(201,169,97,.5);box-shadow:0 0 50px rgba(201,169,97,.25),inset 0 0 24px rgba(201,169,97,.08)}
+.lux-vip .lux-title{color:#e8d9a8;text-shadow:0 0 30px rgba(201,169,97,.3)}
+.lux-vip .lux-sub{color:#8a7a55}
+.lux-vip input{background:rgba(0,0,0,.55);border:1px solid rgba(201,169,97,.35);color:#e8d9a8}
+.lux-vip input:focus{border-color:rgba(201,169,97,.8);box-shadow:0 0 0 4px rgba(201,169,97,.12)}
+.lux-vip button.lux-go{background:linear-gradient(135deg,#c9a961,#a38032);color:#0a0a0a;box-shadow:0 10px 30px rgba(201,169,97,.3)}
+.lux-vip button.lux-go:hover{box-shadow:0 14px 40px rgba(201,169,97,.5)}
+.lux-icon{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;margin:0 auto 24px;border:1px solid;background:rgba(0,0,0,.5);position:relative}
+.lux-icon svg{width:34px;height:34px;stroke-width:1.4;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.lux-title{font-size:14px;font-weight:600;letter-spacing:6px;margin-bottom:10px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.lux-sub{font-size:11.5px;margin-bottom:28px;letter-spacing:2.5px;text-transform:uppercase}
+.lux-box input{width:100%;padding:18px 16px;border-radius:12px;font-size:22px;text-align:center;letter-spacing:14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;outline:0;transition:all .25s}
+.lux-go{width:100%;padding:16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:4px;transition:all .25s;font-family:inherit;border:0;text-transform:uppercase;margin-top:6px}
+.lux-go:hover{transform:translateY(-1px)}
+.lux-go:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.lux-err{color:#ef4444;font-size:11.5px;height:18px;margin-top:12px;letter-spacing:.5px}
+.lux-close{position:absolute;top:16px;left:16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:#52525b;font-size:18px;cursor:pointer;display:grid;place-items:center;line-height:1;transition:all .15s}
+.lux-close:hover{background:rgba(255,255,255,.08);color:#e5e5e5}
+
+/* ===== ADMIN DASHBOARD ===== */
+.ad-dash{position:fixed;inset:0;display:none;z-index:190;background:#08080a;padding:0}
+.ad-dash.on{display:flex;flex-direction:column}
+.ad-head{padding:14px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:14px;background:#0a0a0c}
+.ad-head-title{font-size:11.5px;letter-spacing:5px;color:#8b8b8f;font-weight:700;text-transform:uppercase}
+.ad-head-line{flex:1;height:1px;background:linear-gradient(90deg,rgba(220,38,38,.3),transparent)}
+.ad-close{width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#8b8b8f;cursor:pointer;font-size:18px;display:grid;place-items:center;line-height:1;transition:all .15s}
+.ad-close:hover{background:rgba(220,38,38,.15);color:#fca5a5;border-color:rgba(220,38,38,.3)}
+.ad-body{flex:1;display:flex;overflow:hidden}
+.ad-side{width:320px;border-left:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;background:#0a0a0c;flex-shrink:0}
+.ad-search{padding:14px;border-bottom:1px solid rgba(255,255,255,.05)}
+.ad-search input{width:100%;background:#131316;border:1px solid rgba(255,255,255,.06);color:#e5e5e5;padding:11px 14px;border-radius:8px;font-size:13px;outline:0;font-family:inherit;transition:border-color .15s}
+.ad-search input:focus{border-color:rgba(220,38,38,.4)}
+.ad-list{flex:1;overflow-y:auto;padding:6px}
+.ad-user{padding:12px 14px;border-radius:8px;cursor:pointer;margin-bottom:2px;transition:background .12s;border:1px solid transparent;background:transparent;width:100%;text-align:right;font-family:inherit;color:#e5e5e5}
+.ad-user:hover{background:rgba(255,255,255,.03)}
+.ad-user.on{background:rgba(220,38,38,.06);border-color:rgba(220,38,38,.2)}
+.ad-user-name{font-size:13.5px;font-weight:600;color:#f5f5f5;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ad-user-meta{font-size:11px;color:#71717a;margin-top:3px}
+.ad-badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px}
+.ad-badge.admin{background:rgba(220,38,38,.15);color:#f87171;border:1px solid rgba(220,38,38,.3)}
+.ad-badge.vip{background:rgba(201,169,97,.15);color:#e8d9a8;border:1px solid rgba(201,169,97,.35)}
+.ad-badge.guest{background:rgba(96,165,250,.12);color:#93c5fd;border:1px solid rgba(96,165,250,.25)}
+.ad-badge.banned{background:rgba(220,38,38,.25);color:#fca5a5;border:1px solid rgba(220,38,38,.5)}
+.ad-main{flex:1;overflow-y:auto;padding:28px;color:#e5e5e5}
+.ad-card{background:#0f0f12;border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:22px;margin-bottom:16px}
+.ad-card-title{font-size:10.5px;letter-spacing:3px;color:#71717a;font-weight:700;text-transform:uppercase;margin-bottom:16px}
+.ad-user-head{display:flex;align-items:center;gap:18px;margin-bottom:22px}
+.ad-user-avatar{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#1a1a1e,#0a0a0c);border:1px solid rgba(255,255,255,.08);display:grid;place-items:center;font-size:26px;font-weight:700;color:#e8d9a8;flex-shrink:0;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ad-user-info h2{font-size:20px;font-weight:600;color:#fafafa;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ad-user-info .ad-id{font-size:12px;color:#71717a;letter-spacing:.5px}
+.ad-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ad-btn{padding:10px 18px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid;font-family:inherit;transition:all .15s;background:transparent;letter-spacing:.5px}
+.ad-btn.red{color:#f87171;border-color:rgba(220,38,38,.35)}
+.ad-btn.red:hover{background:rgba(220,38,38,.1);box-shadow:0 0 20px rgba(220,38,38,.15)}
+.ad-btn.gold{color:#e8d9a8;border-color:rgba(201,169,97,.4)}
+.ad-btn.gold:hover{background:rgba(201,169,97,.1);box-shadow:0 0 20px rgba(201,169,97,.15)}
+.ad-btn.neutral{color:#a1a1aa;border-color:rgba(255,255,255,.12)}
+.ad-btn.neutral:hover{background:rgba(255,255,255,.04);color:#e5e5e5}
+.ad-info-row{display:flex;padding:10px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.03)}
+.ad-info-row:last-child{border-bottom:0}
+.ad-info-row .k{width:130px;color:#71717a;font-size:12px;letter-spacing:.3px;flex-shrink:0}
+.ad-info-row .v{color:#e5e5e5;flex:1;word-break:break-word}
+.ad-chat-btn{width:100%;text-align:right;padding:13px 16px;background:#131316;border:1px solid rgba(255,255,255,.05);border-radius:10px;color:#e5e5e5;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:6px;transition:all .15s}
+.ad-chat-btn:hover{background:#18181c;border-color:rgba(201,169,97,.25);transform:translateX(-2px)}
+.ad-chat-btn .meta{font-size:11px;color:#71717a;margin-top:4px}
+.ad-empty{color:#52525b;text-align:center;padding:60px 20px;font-size:13px;letter-spacing:.5px}
+.ad-chat-view{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;z-index:210;padding:20px}
+.ad-chat-view.on{display:flex}
+.ad-chat-box{width:min(780px,100%);height:85vh;background:#0a0a0c;border:1px solid rgba(255,255,255,.08);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.8)}
+.ad-chat-head{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:12px}
+.ad-chat-title{font-size:14px;font-weight:600;color:#fafafa;flex:1}
+.ad-chat-msgs{flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:12px}
+.ad-msg{max-width:80%;padding:12px 16px;border-radius:12px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;word-wrap:break-word}
+.ad-msg.user{background:#131316;border:1px solid rgba(220,38,38,.15);align-self:flex-end;color:#e5e5e5}
+.ad-msg.assistant{background:#0f0f12;border:1px solid rgba(201,169,97,.15);align-self:flex-start;color:#d4d4d8}
+.ad-msg-meta{font-size:10px;color:#52525b;margin-top:6px;letter-spacing:.3px}
+
 @keyframes pl{0%,100%{opacity:.3}50%{opacity:1}}
 @media (max-width:800px){
 .sb{position:fixed;top:0;right:0;bottom:0;width:280px;max-width:85vw;transform:translateX(100%);box-shadow:-8px 0 32px rgba(0,0,0,.4)}
@@ -776,6 +852,10 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 .cards{grid-template-columns:1fr}
 .md{padding:0;align-items:flex-end}
 .mbox{border-radius:var(--r-lg) var(--r-lg) 0 0;max-height:92vh}
+.ad-side{width:240px}
+.ad-main{padding:18px}
+.ad-user-head{flex-direction:column;text-align:center}
+.lux-box{padding:36px 24px 28px}
 }
 </style>
 </head><body>
@@ -814,7 +894,7 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 </form>
 <div class="auth-div">או</div>
 <button class="auth-btn sec" id="guestBtn" type="button">המשך כאורח</button>
-<div class="auth-foot">NOVA v9.0 · POWERED BY SK</div>
+<div class="auth-foot">NOVA v9.1 · POWERED BY SK</div>
 </div>
 </div>
 
@@ -833,12 +913,12 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 <div class="sb-label">היסטוריה</div>
 <div class="sb-list" id="chatList"></div>
 <div class="sb-bottom">
-<button class="sb-b" id="btnAgents">👥 סוכנים</button>
-<button class="sb-b" id="btnModels">⚙ מודלים</button>
-<button class="sb-b" id="btnMemory">🧠 זיכרון</button>
-<button class="sb-b" id="btnSettings">⚙ הגדרות</button>
-<button class="sb-b" id="btnLogout">↩ התנתקות</button>
-<div class="sb-sign"><b>SHVIT KLEIN</b><br>NOVA v9.0</div>
+<button class="sb-b" id="btnAgents">סוכנים</button>
+<button class="sb-b" id="btnModels">מודלים</button>
+<button class="sb-b" id="btnMemory">זיכרון</button>
+<button class="sb-b" id="btnSettings">הגדרות</button>
+<button class="sb-b" id="btnLogout">התנתקות</button>
+<div class="sb-sign"><b>SHVIT KLEIN</b><br>NOVA v9.1</div>
 </div>
 </aside>
 <main class="main">
@@ -846,9 +926,8 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 <button class="menu" id="menuBtn">☰</button>
 <div class="title" id="title">NOVA</div>
 <div class="right">
-<span id="levelBadge" class="level-badge hidden"></span>
 <span id="vipBadge" class="vip-badge hidden">VIP</span>
-<button class="ibtn" id="themeBtn" title="ערכת נושא">◐</button>
+<button class="ibtn" id="themeBtn">◐</button>
 <div class="avatar" id="userBtn"><div class="ini" id="topIni">?</div></div>
 </div>
 </header>
@@ -857,8 +936,8 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 <div class="comp-inner">
 <div class="attach" id="attachList"></div>
 <div class="comp">
-<button class="tool" id="fileBtn" title="קובץ">+</button>
-<button class="tool" id="imgBtn" title="תמונה">🎨</button>
+<button class="tool" id="fileBtn">+</button>
+<button class="tool" id="imgBtn">🎨</button>
 <textarea id="input" rows="1" placeholder="הודעה ל-NOVA" autocomplete="off"></textarea>
 <button class="send" id="sendBtn" disabled>▲</button>
 </div>
@@ -876,14 +955,13 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 <div class="fld"><div class="ft" style="margin-bottom:6px">אישיות</div><select id="optPersonality" class="inp" style="width:100%"><option value="default">ברירת מחדל</option><option value="friend">חבר</option><option value="family">משפחה</option><option value="professional">מקצועי</option><option value="teacher">מורה</option><option value="coach">מאמן</option><option value="peer">עמית</option></select></div>
 <div class="fld">
 <div class="ft" style="margin-bottom:6px">משוב</div>
-<div class="fd" style="margin-bottom:8px">רעיון, באג, או כל דבר אחר</div>
 <select class="inp" id="fbCategory" style="width:100%;margin-bottom:8px"><option value="general">כללי</option><option value="bug">באג</option><option value="idea">רעיון</option><option value="tip">טיפ</option><option value="praise">פרגון</option></select>
 <textarea class="inp" id="fbText" placeholder="כתוב את המשוב..." maxlength="2000" style="margin-bottom:8px"></textarea>
 <button class="btn bp" id="btnSendFb" style="width:100%">שלח משוב</button>
 <div id="fbList" style="margin-top:14px"></div>
 </div>
 <div class="fld"><div class="fr"><div><div class="ft">אבחון</div></div><button class="btn bs" id="btnDiag">הרץ</button></div></div>
-<div class="fld" style="text-align:center;color:var(--muted);font-size:12px">NOVA v9.0 · <b style="color:var(--text)">Shavit Klein</b></div>
+<div class="fld" style="text-align:center;color:var(--muted);font-size:12px">NOVA v9.1 · <b style="color:var(--text)">Shavit Klein</b></div>
 </div></div></div>
 
 <div class="md" id="mdAgents"><div class="mbox"><div class="mhead"><div class="mtitle">סוכנים</div><button class="mx" data-close="mdAgents">×</button></div><div class="mbody">
@@ -910,16 +988,64 @@ input:checked + .sl:before{transform:translateX(18px);background:var(--bg)}
 
 <div class="md" id="mdModels"><div class="mbox"><div class="mhead"><div class="mtitle">מודלים</div><button class="mx" data-close="mdModels">×</button></div><div class="mbody" id="modelsList"></div></div></div>
 
+<!-- ===== LUX MODALS ===== -->
+<div class="lux" id="mdDev">
+<div class="lux-box lux-dev">
+<button class="lux-close" data-lux="mdDev">×</button>
+<div class="lux-icon"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v7c0 5 3.5 9 9 11 5.5-2 9-6 9-11V7l-9-5z"/><path d="M9 12l2 2 4-4"/></svg></div>
+<div class="lux-title">DEVELOPER</div>
+<div class="lux-sub">Restricted access</div>
+<input type="password" id="devPwd" maxlength="20" autocomplete="off" placeholder="····">
+<div class="lux-err" id="devErr"></div>
+<button class="lux-go" id="devEnter">ENTER</button>
+</div>
+</div>
+
+<div class="lux" id="mdVip">
+<div class="lux-box lux-vip">
+<button class="lux-close" data-lux="mdVip">×</button>
+<div class="lux-icon"><svg viewBox="0 0 24 24"><path d="M3 8l4 3 5-7 5 7 4-3-2 12H5L3 8z"/></svg></div>
+<div class="lux-title">VIP</div>
+<div class="lux-sub">Exclusive membership</div>
+<input type="password" id="vipPwd" maxlength="20" autocomplete="off" placeholder="····">
+<div class="lux-err" id="vipErr"></div>
+<button class="lux-go" id="vipEnter">ACTIVATE</button>
+</div>
+</div>
+
+<div class="ad-dash" id="adDash">
+<div class="ad-head">
+<div class="ad-head-title">Control Panel</div>
+<div class="ad-head-line"></div>
+<button class="ad-close" id="adClose">×</button>
+</div>
+<div class="ad-body">
+<aside class="ad-side">
+<div class="ad-search"><input id="adSearch" placeholder="Search users..."></div>
+<div class="ad-list" id="adList"></div>
+</aside>
+<div class="ad-main" id="adMain"><div class="ad-empty">Select a user from the list</div></div>
+</div>
+</div>
+
+<div class="ad-chat-view" id="adChatView">
+<div class="ad-chat-box">
+<div class="ad-chat-head">
+<div class="ad-chat-title" id="adChatTitle">Conversation</div>
+<button class="ad-close" id="adChatClose">×</button>
+</div>
+<div class="ad-chat-msgs" id="adChatMsgs"></div>
+</div>
+</div>
+
 <script>
 "use strict";
-const S = {token:localStorage.getItem("nova_token")||"",user:null,chatId:null,attachments:[],lastNew:0,models:[],agentId:null,regGender:"",imgMode:false};
+const S = {token:localStorage.getItem("nova_token")||"",user:null,chatId:null,attachments:[],lastNew:0,models:[],agentId:null,regGender:"",imgMode:false,adUsers:[],adCur:null};
 
 const $=id=>document.getElementById(id), $$=s=>document.querySelectorAll(s);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e;};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-const stat=m=>{const e=$("live");if(e)e.textContent=m;};
 const MODE_HE={General:"כללי",Code:"קוד",Study:"לימוד",Research:"חקר",Vision:"תמונה",Creative:"יצירה",Command:"פקודה"};
-const LEVEL_HE={1:"מתחיל",2:"בסיסי",3:"מקצועי",4:"מומחה",5:"ארכיטקט"};
 
 async function api(p,o={}){const h=o.headers||{};if(!(o.body instanceof FormData))h["Content-Type"]=h["Content-Type"]||"application/json";if(S.token)h["Authorization"]="Bearer "+S.token;const r=await fetch(p,{...o,headers:h});let d=null;try{d=await r.json();}catch{throw new Error("Invalid response");}if(!r.ok)throw new Error(d.error||"HTTP "+r.status);if(d.ok===false)throw new Error(d.error||"Failed");return d;}
 function showAuth(){$("authScreen").classList.remove("hidden");$("app").classList.add("hidden");}
@@ -941,12 +1067,12 @@ function updateUserUI(){if(!S.user)return;$("sbUser").textContent=S.user.usernam
 async function loadChats(){try{const r=await api("/api/chats");const list=$("chatList");list.innerHTML="";if(!r.chats.length){list.innerHTML='<div style="padding:12px;color:var(--muted2);font-size:12.5px;text-align:center">אין שיחות</div>';return;}r.chats.forEach(c=>{const b=el("button","chat-item"+(c.id===S.chatId?" active":""));b.innerHTML='<span class="t">'+esc(c.title)+'</span>';b.onclick=()=>openChat(c.id);list.appendChild(b);});}catch(e){console.error(e);}}
 
 async function createNewChat(force=false){if(S.chatId&&$("chatInner").querySelector(".msg")===null){$("input").focus();closeSB();return;}const t=Date.now();if(!force&&t-S.lastNew<3000)return;S.lastNew=t;try{const r=await api("/api/chats",{method:"POST",body:JSON.stringify({title:"שיחה חדשה",mode:"General"})});S.chatId=r.chat_id;S.agentId=null;$("title").textContent="שיחה חדשה";renderWelcome();await loadChats();$("input").focus();}catch(e){console.error(e);}}
-async function openChat(id){try{const r=await api("/api/chats/"+encodeURIComponent(id));S.chatId=id;S.agentId=r.chat.agent_id||null;$("chatInner").innerHTML="";$("title").textContent=r.chat.title;if(r.chat.level){$("levelBadge").textContent="L"+r.chat.level+" · "+(LEVEL_HE[r.chat.level]||"");$("levelBadge").classList.remove("hidden");}r.messages.forEach(m=>addMessage(m.role,m.content,m.role==="assistant"?{mode:m.mode,model:m.model,level:m.level,reasoning:m.reasoning}:null));if(!r.messages.length)renderWelcome();await loadChats();scrollEnd(true);closeSB();}catch(e){console.error(e);}}
+async function openChat(id){try{const r=await api("/api/chats/"+encodeURIComponent(id));S.chatId=id;S.agentId=r.chat.agent_id||null;$("chatInner").innerHTML="";$("title").textContent=r.chat.title;r.messages.forEach(m=>addMessage(m.role,m.content));if(!r.messages.length)renderWelcome();await loadChats();scrollEnd(true);closeSB();}catch(e){console.error(e);}}
 function renderWelcome(){const dn=S.user?.username&&!S.user.is_guest?S.user.username:"";$("chatInner").innerHTML='<div class="welcome"><div class="wlogo">N</div><h1>'+(dn?"שלום, "+esc(dn):"איך אפשר לעזור?")+'</h1><p>NOVA מזהה אוטומטית מה אתה צריך - קוד, לימוד, חקר, יצירה. פשוט תכתוב.</p><div class="cards"><button class="card" data-p="הסבר לי נושא מאפס"><div class="ct">הסבר נושא</div><div class="cd">מאפס, בשפה פשוטה</div></button><button class="card" data-p="עזור לי לדבג קוד"><div class="ct">דיבאג קוד</div><div class="cd">מצא ותקן באגים</div></button><button class="card" data-p="צור לי תמונה של חתול"><div class="ct">צור תמונה</div><div class="cd">Flux - איכות גבוהה</div></button><button class="card" data-p="מה מזג האוויר בתל אביב"><div class="ct">מזג אוויר</div><div class="cd">תחזית עכשיו</div></button></div></div>';$$(".card").forEach(c=>c.onclick=()=>{$("input").value=c.dataset.p;$("input").dispatchEvent(new Event("input"));$("input").focus();});}
 function detectDir(t){const h=(t.match(/[\u0590-\u05FF]/g)||[]).length;const tot=t.replace(/\s/g,"").length||1;return h/tot>0.25?"rtl":"ltr";}
 function md(text){let s=esc(text);s=s.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,l,c)=>"<pre><code>"+c.trim()+"</code></pre>");s=s.replace(/`([^`\n]+)`/g,"<code>$1</code>");s=s.replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>");s=s.replace(/^### (.+)$/gm,"<h3>$1</h3>");s=s.replace(/^## (.+)$/gm,"<h2>$1</h2>");s=s.replace(/^# (.+)$/gm,"<h1>$1</h1>");s=s.replace(/^\s*[-*] (.+)$/gm,"<li>$1</li>");s=s.replace(/(<li>[\s\S]*?<\/li>)/g,m=>"<ul>"+m+"</ul>");s=s.replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');return s;}
-function addMessage(role,content,meta=null){const w=$("chatInner").querySelector(".welcome");if(w)w.remove();const stick=isNearBottom();const m=el("div","msg "+(role==="user"?"user":"assistant"));const av=el("div","av");av.textContent=role==="user"?"YOU":"N";const bd=el("div","bd");if(meta&&role==="assistant"){const tag=el("div","tag");let th="<b>"+esc(MODE_HE[meta.mode]||meta.mode||"כללי")+"</b>";if(meta.level)th+=' · <span class="lvl">L'+meta.level+"</span>";if(meta.model)th+=" · "+esc(meta.model);tag.innerHTML=th;bd.appendChild(tag);}const bub=el("div","bub");bub.setAttribute("dir",detectDir(content));if(role==="user")bub.innerHTML=esc(content).replace(/\n/g,"<br>");else bub.innerHTML=md(content);bd.appendChild(bub);m.appendChild(av);m.appendChild(bd);$("chatInner").appendChild(m);bub.querySelectorAll("img").forEach(img=>img.onclick=()=>{});if(stick)scrollEnd();return m;}
-function addThinking(){const w=$("chatInner").querySelector(".welcome");if(w)w.remove();const m=el("div","msg assistant");m.innerHTML='<div class="av">N</div><div class="bd"><div class="tag"><b>חושב</b></div><div class="bub"><div class="thinking"><span>מנתח בקשה</span><span class="dots"><i></i><i></i><i></i></span></div></div></div>';$("chatInner").appendChild(m);scrollEnd();return m;}
+function addMessage(role,content){const w=$("chatInner").querySelector(".welcome");if(w)w.remove();const stick=isNearBottom();const m=el("div","msg "+(role==="user"?"user":"assistant"));const av=el("div","av");av.textContent=role==="user"?"":"N";const bd=el("div","bd");const bub=el("div","bub");bub.setAttribute("dir",detectDir(content));if(role==="user")bub.innerHTML=esc(content).replace(/\n/g,"<br>");else bub.innerHTML=md(content);bd.appendChild(bub);m.appendChild(av);m.appendChild(bd);$("chatInner").appendChild(m);if(stick)scrollEnd();return m;}
+function addThinking(){const w=$("chatInner").querySelector(".welcome");if(w)w.remove();const m=el("div","msg assistant");m.innerHTML='<div class="av">N</div><div class="bd"><div class="bub"><div class="thinking"><span>חושב</span><span class="dots"><i></i><i></i><i></i></span></div></div></div>';$("chatInner").appendChild(m);scrollEnd();return m;}
 function isNearBottom(){const a=$("chatArea");return a.scrollHeight-a.scrollTop-a.clientHeight<150;}
 function scrollEnd(f=false){if(!f&&!isNearBottom())return;requestAnimationFrame(()=>{$("chatArea").scrollTop=$("chatArea").scrollHeight;});}
 
@@ -961,10 +1087,76 @@ $("input").oninput=()=>{const t=$("input");t.style.height="auto";t.style.height=
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}};
 $("sendBtn").onclick=send;
 
+// ===== LUX MODAL HANDLERS =====
+function openLux(id){$(id).classList.add("on");setTimeout(()=>{const i=$(id).querySelector("input");if(i){i.value="";i.focus();}},100);}
+function closeLux(id){$(id).classList.remove("on");}
+$$("[data-lux]").forEach(b=>b.onclick=()=>closeLux(b.dataset.lux));
+$$(".lux").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("on");});
+
+$("devEnter").onclick=async()=>{
+  const pwd=$("devPwd").value.trim();
+  if(!pwd){$("devErr").textContent="Enter password";return;}
+  $("devErr").textContent="";
+  $("devEnter").disabled=true;
+  try{
+    const r=await api("/api/dev/verify",{method:"POST",body:JSON.stringify({password:pwd})});
+    if(r.ok&&r.session){
+      localStorage.setItem("nova_token",r.session.token);S.token=r.session.token;
+      closeLux("mdDev");
+      await checkAuth();
+      openAdminDash();
+    }
+  }catch(e){$("devErr").textContent=e.message||"Access denied";}
+  finally{$("devEnter").disabled=false;}
+};
+$("devPwd").onkeydown=e=>{if(e.key==="Enter")$("devEnter").click();};
+
+$("vipEnter").onclick=async()=>{
+  const code=$("vipPwd").value.trim();
+  if(!code){$("vipErr").textContent="Enter code";return;}
+  $("vipErr").textContent="";
+  $("vipEnter").disabled=true;
+  try{
+    await api("/api/vip/verify",{method:"POST",body:JSON.stringify({code:code})});
+    closeLux("mdVip");
+    await checkAuth();
+    updateUserUI();
+    setTimeout(()=>alert("VIP access activated"),100);
+  }catch(e){$("vipErr").textContent=e.message||"Invalid code";}
+  finally{$("vipEnter").disabled=false;}
+};
+$("vipPwd").onkeydown=e=>{if(e.key==="Enter")$("vipEnter").click();};
+
+// ===== ADMIN DASHBOARD =====
+function openAdminDash(){$("adDash").classList.add("on");loadAdUsers();}
+$("adClose").onclick=()=>$("adDash").classList.remove("on");
+
+async function loadAdUsers(){try{const r=await api("/api/admin/users");S.adUsers=r.users||[];renderAdList();}catch(e){console.error(e);}}
+function renderAdList(){const l=$("adList");l.innerHTML="";const q=($("adSearch").value||"").toLowerCase();const fs=S.adUsers.filter(u=>!q||u.username.toLowerCase().includes(q)||String(u.id).includes(q));if(!fs.length){l.innerHTML='<div class="ad-empty" style="padding:20px">No users</div>';return;}fs.forEach(u=>{const b=el("button","ad-user"+(S.adCur?.id===u.id?" on":""));let badges="";if(u.role==="admin")badges+='<span class="ad-badge admin">ADMIN</span>';if(u.vip)badges+='<span class="ad-badge vip">VIP</span>';if(u.is_guest)badges+='<span class="ad-badge guest">GUEST</span>';if(u.banned)badges+='<span class="ad-badge banned">BANNED</span>';b.innerHTML='<div class="ad-user-name">'+esc(u.username)+' '+badges+'</div><div class="ad-user-meta">#'+u.id+'</div>';b.onclick=()=>loadAdUser(u.id);l.appendChild(b);});}
+$("adSearch").oninput=renderAdList;
+
+async function loadAdUser(uid){try{const r=await api("/api/admin/user/"+uid);S.adCur=r.user;renderAdList();renderAdDetail(r);}catch(e){console.error(e);}}
+function renderAdDetail(r){const u=r.user;const chats=r.chats||[];let badges="";if(u.role==="admin")badges+='<span class="ad-badge admin">ADMIN</span>';if(u.vip)badges+='<span class="ad-badge vip">VIP</span>';if(u.banned)badges+='<span class="ad-badge banned">BANNED</span>';const created=new Date(u.created_at*1000).toLocaleString("he-IL");const lastL=u.last_login?new Date(u.last_login*1000).toLocaleString("he-IL"):"—";const name=[u.first_name,u.last_name].filter(Boolean).join(" ")||u.username;const ini=(u.username||"?").charAt(0).toUpperCase();const infoRow=(k,v)=>v?'<div class="ad-info-row"><div class="k">'+k+'</div><div class="v">'+esc(v)+'</div></div>':"";$("adMain").innerHTML='<div class="ad-card"><div class="ad-user-head"><div class="ad-user-avatar">'+ini+'</div><div class="ad-user-info"><h2>'+esc(u.username)+' '+badges+'</h2><div class="ad-id">ID '+u.id+' · '+(u.is_guest?"Guest":"Registered")+'</div></div></div><div class="ad-actions"><button class="ad-btn '+(u.banned?"neutral":"red")+'" onclick="adBan('+u.id+','+(u.banned?"false":"true")+')">'+(u.banned?"Unban":"Ban")+'</button><button class="ad-btn '+(u.vip?"neutral":"gold")+'" onclick="adVip('+u.id+','+(u.vip?"false":"true")+')">'+(u.vip?"Remove VIP":"Grant VIP")+'</button>'+(u.role!=="admin"?'<button class="ad-btn red" onclick="adDelete('+u.id+')">Delete</button>':"")+'</div></div><div class="ad-card"><div class="ad-card-title">Details</div>'+infoRow("Name",name)+infoRow("Email",u.email)+infoRow("Phone",u.phone)+infoRow("Gender",u.gender)+infoRow("Created",created)+infoRow("Last login",lastL)+'</div><div class="ad-card"><div class="ad-card-title">Conversations ('+chats.length+')</div>'+(chats.length?chats.map(c=>'<button class="ad-chat-btn" onclick="adViewChat(\''+c.id+'\')">'+esc(c.title)+'<div class="meta">'+new Date(c.updated_at*1000).toLocaleString("he-IL")+'</div></button>').join(""):'<div class="ad-empty" style="padding:20px">No conversations</div>')+'</div>';}
+window.adBan=async(uid,ban)=>{try{await api("/api/admin/ban",{method:"POST",body:JSON.stringify({user_id:uid,banned:ban})});await loadAdUsers();if(S.adCur&&S.adCur.id===uid)await loadAdUser(uid);}catch(e){alert(e.message);}};
+window.adVip=async(uid,vip)=>{try{await api("/api/admin/vip",{method:"POST",body:JSON.stringify({user_id:uid,vip:vip})});await loadAdUsers();if(S.adCur&&S.adCur.id===uid)await loadAdUser(uid);}catch(e){alert(e.message);}};
+window.adDelete=async uid=>{if(!confirm("Delete this user permanently?"))return;try{await api("/api/admin/user/"+uid,{method:"DELETE"});S.adCur=null;$("adMain").innerHTML='<div class="ad-empty">Select a user from the list</div>';await loadAdUsers();}catch(e){alert(e.message);}};
+window.adViewChat=async cid=>{try{const r=await api("/api/admin/chat/"+cid);$("adChatTitle").textContent=r.chat.title;const box=$("adChatMsgs");box.innerHTML="";if(!r.messages.length){box.innerHTML='<div class="ad-empty">No messages</div>';}else{r.messages.forEach(m=>{const d=el("div","ad-msg "+(m.role==="user"?"user":"assistant"));const t=new Date(m.created_at*1000).toLocaleString("he-IL");d.innerHTML=esc(m.content)+'<div class="ad-msg-meta">'+(m.role==="user"?"USER":"NOVA")+' · '+t+(m.model?" · "+esc(m.model):"")+'</div>';box.appendChild(d);});}$("adChatView").classList.add("on");}catch(e){alert(e.message);}};
+$("adChatClose").onclick=()=>$("adChatView").classList.remove("on");
+$("adChatView").onclick=e=>{if(e.target.id==="adChatView")$("adChatView").classList.remove("on");};
+
+// ===== SEND (with special command intercept) =====
 async function send(){
   const text=$("input").value.trim();
   if(!text&&!S.attachments.length)return;
-  if(text==="/vip"){$("input").value="";updateSend();alert("VIP: בקרוב");return;}
+  const lower=text.toLowerCase();
+  if(lower==="/sk"||lower==="/dev"){
+    $("input").value="";$("input").style.height="auto";updateSend();
+    openLux("mdDev");return;
+  }
+  if(lower==="/vip"){
+    $("input").value="";$("input").style.height="auto";updateSend();
+    openLux("mdVip");return;
+  }
   if(!S.chatId)await createNewChat(true);
   const files=S.attachments.slice();
   S.attachments=[];renderAtt();$("input").value="";$("input").style.height="auto";updateSend();
@@ -975,14 +1167,13 @@ async function send(){
     const r=await api("/api/chat",{method:"POST",body:JSON.stringify(payload)});
     thinking.remove();
     if(r.images?.length)r.images.forEach(img=>addImageCard(img.prompt,img.url));
-    if(r.reply?.trim())addMessage("assistant",r.reply,{mode:r.mode,model:r.model,level:r.level});
-    if(r.level){$("levelBadge").textContent="L"+r.level+" · "+(LEVEL_HE[r.level]||"");$("levelBadge").classList.remove("hidden");}
+    if(r.reply?.trim())addMessage("assistant",r.reply);
     if(r.mode)$("title").textContent=MODE_HE[r.mode]||r.mode;
     await loadChats();
   }catch(e){thinking.remove();addMessage("assistant","שגיאה: "+e.message);}
   finally{updateSend();$("input").focus();}
 }
-function addImageCard(prompt,url){const m=el("div","msg assistant");m.innerHTML='<div class="av">N</div><div class="bd"><div class="tag"><b>תמונה</b></div><div class="bub"><div style="font-size:11.5px;color:var(--muted);margin-bottom:8px" dir="ltr">'+esc(prompt)+'</div><img src="'+url+'" loading="lazy"></div></div>';$("chatInner").appendChild(m);scrollEnd();}
+function addImageCard(prompt,url){const m=el("div","msg assistant");m.innerHTML='<div class="av">N</div><div class="bd"><div class="bub"><div style="font-size:11.5px;color:var(--muted);margin-bottom:8px" dir="ltr">'+esc(prompt)+'</div><img src="'+url+'" loading="lazy"></div></div>';$("chatInner").appendChild(m);scrollEnd();}
 
 // Settings
 $("btnSettings").onclick=async()=>{const s=await api("/api/settings");$("optMemory").checked=s.memory_enabled!=="false";$("optHistory").checked=s.save_history!=="false";$("optLevel").value=s.level||"auto";$("optPersonality").value=s.personality||"default";loadFb();$("mdSettings").classList.add("on");closeSB();};
@@ -1021,7 +1212,7 @@ applyTheme(localStorage.getItem("nova_theme")||"dark");
 // Close modals
 $$("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove("on"));
 $$(".md").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("on");});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")$$(".md.on").forEach(m=>m.classList.remove("on"));});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){$$(".md.on").forEach(m=>m.classList.remove("on"));$$(".lux.on").forEach(m=>m.classList.remove("on"));}});
 
 async function boot(){try{const s=await api("/api/settings");updateUserUI();$("app").classList.remove("hidden");await loadChats();await createNewChat(true);}catch(e){console.error("boot:",e);}}
 (async()=>{const ok=await checkAuth();if(ok)await boot();})();
@@ -1078,7 +1269,7 @@ def require_admin(h):
     return u
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NOVA/9.0"
+    server_version = "NOVA/9.1"
     def log_message(self, fmt, *args): pass
     def err(self, msg, code=400): json_resp(self, {"ok": False, "error": msg}, code)
 
@@ -1105,7 +1296,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.err("Not found", 404); return
 
-            # Admin
+            # Admin routes
             if path.startswith("/api/admin/"):
                 try: user_admin = require_admin(self)
                 except PermissionError: self.err("Forbidden", 403); return
@@ -1115,23 +1306,16 @@ class Handler(BaseHTTPRequestHandler):
                     json_resp(self, {"ok": True, "users": get_all_users()}); return
                 if path == "/api/admin/feedback":
                     json_resp(self, {"ok": True, "feedback": get_all_feedback()}); return
-
-            # Dev
-            if path.startswith("/api/dev/"):
-                try: user_admin = require_admin(self)
-                except PermissionError: self.err("Forbidden", 403); return
-                if path == "/api/dev/users":
-                    json_resp(self, {"ok": True, "users": get_all_users()}); return
-                if path.startswith("/api/dev/user/"):
-                    uid = int(safe_path(path.split("/api/dev/user/",1)[1]))
+                if path.startswith("/api/admin/user/"):
+                    uid = int(safe_path(path.split("/api/admin/user/",1)[1]))
                     c = db(); cur = c.cursor()
                     cur.execute("SELECT id,username,email,first_name,last_name,phone,gender,role,vip,banned,created_at,last_login FROM users WHERE id=%s", (uid,))
                     u = cur.fetchone(); cur.close(); c.close()
                     if not u: self.err("Not found", 404); return
                     ud = {"id":u[0],"username":u[1],"email":u[2],"first_name":u[3],"last_name":u[4],"phone":u[5],"gender":u[6],"role":u[7],"vip":u[8],"banned":u[9],"created_at":u[10],"last_login":u[11]}
                     json_resp(self, {"ok": True, "user": ud, "chats": get_chats_of_user(uid)}); return
-                if path.startswith("/api/dev/chat/"):
-                    cid = safe_path(path.split("/api/dev/chat/",1)[1])
+                if path.startswith("/api/admin/chat/"):
+                    cid = safe_path(path.split("/api/admin/chat/",1)[1])
                     d = get_chat_admin(cid)
                     if not d: self.err("Not found", 404); return
                     json_resp(self, {"ok": True, **d}); return
@@ -1192,11 +1376,13 @@ class Handler(BaseHTTPRequestHandler):
             try: user = require_auth(self)
             except PermissionError: self.err("Unauthorized", 401); return
 
+            # ===== VIP verification =====
             if path == "/api/vip/verify":
                 d = read_json(self)
                 if str(d.get("code","")).strip() != VIP_CODE: self.err("קוד שגוי", 401); return
                 upgrade_vip(user["user_id"]); json_resp(self, {"ok": True, "vip": True}); return
 
+            # ===== Developer verification =====
             if path == "/api/dev/verify":
                 d = read_json(self)
                 if str(d.get("password","")).strip() != DEV_PASSWORD: self.err("סיסמה שגויה", 401); return
@@ -1213,6 +1399,7 @@ class Handler(BaseHTTPRequestHandler):
                 sess = create_session(aid, days=1)
                 json_resp(self, {"ok": True, "session": sess, "admin_user": {"id": aid, "username": an}}); return
 
+            # ===== Admin endpoints =====
             if path.startswith("/api/admin/"):
                 try: user_admin = require_admin(self)
                 except PermissionError: self.err("Forbidden", 403); return
@@ -1220,16 +1407,6 @@ class Handler(BaseHTTPRequestHandler):
                     d = read_json(self); set_user_ban(int(d.get("user_id",0)), bool(d.get("banned",False)))
                     json_resp(self, {"ok": True}); return
                 if path == "/api/admin/vip":
-                    d = read_json(self); set_user_vip(int(d.get("user_id",0)), bool(d.get("vip",False)))
-                    json_resp(self, {"ok": True}); return
-
-            if path.startswith("/api/dev/"):
-                try: user_admin = require_admin(self)
-                except PermissionError: self.err("Forbidden", 403); return
-                if path == "/api/dev/ban":
-                    d = read_json(self); set_user_ban(int(d.get("user_id",0)), bool(d.get("banned",False)))
-                    json_resp(self, {"ok": True}); return
-                if path == "/api/dev/vip":
                     d = read_json(self); set_user_vip(int(d.get("user_id",0)), bool(d.get("vip",False)))
                     json_resp(self, {"ok": True}); return
 
@@ -1248,6 +1425,8 @@ class Handler(BaseHTTPRequestHandler):
                 if message.startswith("/"):
                     sl = handle_slash(message, user, cid)
                     if sl and sl.get("handled"):
+                        if sl.get("special"):
+                            json_resp(self, {"ok": True, "special": sl["special"]}); return
                         save_message(cid, "user", message)
                         save_message(cid, "assistant", sl["reply"], model="command", mode="Command")
                         json_resp(self, {"ok": True, "reply": sl["reply"], "mode": "Command", "model": "command", "images": []}); return
@@ -1323,7 +1502,6 @@ class Handler(BaseHTTPRequestHandler):
                 USAGE["messages"] += 1
                 USAGE["total_latency"] += result.get("latency",0)
 
-                # Auto title
                 ch = get_chat(cid, user["user_id"])
                 if ch and ch["chat"]["title"] == "שיחה חדשה":
                     first = message.replace("\n"," ").strip()
@@ -1377,10 +1555,10 @@ class Handler(BaseHTTPRequestHandler):
             except PermissionError: self.err("Unauthorized", 401); return
             path = urllib.parse.urlparse(self.path).path
 
-            if path.startswith("/api/dev/user/"):
+            if path.startswith("/api/admin/user/"):
                 try: require_admin(self)
                 except PermissionError: self.err("Forbidden", 403); return
-                uid = int(safe_path(path.split("/api/dev/user/",1)[1]))
+                uid = int(safe_path(path.split("/api/admin/user/",1)[1]))
                 delete_user(uid); json_resp(self, {"ok": True}); return
 
             if path.startswith("/api/chats/"):
@@ -1404,7 +1582,6 @@ def main():
     if not DATABASE_URL:
         print("\n" + "="*60)
         print("ERROR: DATABASE_URL not set!")
-        print("Set it as environment variable or in Render dashboard.")
         print("="*60 + "\n")
         sys.exit(1)
     init_db()
